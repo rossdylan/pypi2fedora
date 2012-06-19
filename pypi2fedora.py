@@ -1,8 +1,9 @@
 from pbs import vim, rpmbuild, pypi2spec, scp, ssh
+from rpm import TransactionSet
+import ConfigParser
 import os
 import os.path
 import sys
-from rpm import TransactionSet
 
 
 def getSpecPath(package):
@@ -77,7 +78,7 @@ def buildRPM(package):
 
 def uploadToWebServer(remote_server, remote_path, package, remote_port=22):
     """
-    Upload the .spec file, and the srpm to a webserver 
+    Upload the .spec file, and the srpm to a webserver
 
     :type remote_server: str
     :param remote_server: The remote server to connect to
@@ -116,8 +117,15 @@ def main():
     Main function, used to execute all the other helper funcs
     """
     package = sys.argv[1]
+    config = ConfigParser.read(os.path.expanduser("~/.pypi2fedora.conf"))
     editSpecFile(package)
     buildRPM(package)
+    uploadToWebServer(
+            config.get('remote', 'host'),
+            config.get('remote', 'path'),
+            package,
+            port=config.getint('remote', 'port')
+    )
 
 if __name__ == "__main__":
     package = sys.argv[1]
