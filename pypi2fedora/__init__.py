@@ -1,5 +1,7 @@
 from pbs import vim, rpmbuild, pypi2spec, scp, ssh
-from rpm import TransactionSet
+import rpm
+from bugzilla.rhbugzilla import RHBugzilla3
+from getpass import getpass
 import ConfigParser
 import os
 import os.path
@@ -42,8 +44,7 @@ def getSRPMHead(spec):
     :param spec: Spec file to parse
     """
 
-    ts = TransactionSet()
-    spec_obj = ts.parseSpec(spec)
+    spec_obj = rpm.spec(spec)
     spec_headers = spec_obj.packages[0].header
     head = "{0}-{1}".format(
             spec_headers.format("%{name}"),
@@ -111,6 +112,52 @@ def uploadToWebServer(remote_server, remote_path, package, remote_port=22):
     )
     map(scp_lambda, (spec_path, srpm_path))
 
+def getSpecDesc(spec):
+    return rpm.spec(spec).packages[0].headers.format("%{description}")
+
+def getSpecSummary(spec):
+    return rpm.spec(spec).packages[0].headers.format("%{summary}")
+
+def getSpecName(spec):
+    return rpm.spec(spec).packages[0].headers.format("%{name}")
+
+def createPackageReview(spec_url, srpm_url, spec):
+    comment_format = """
+    Spec URL: {0}
+    SRPM URL: {1}
+    Description: {2}
+    """
+    comment = comment_format.format(
+            spec_url,
+            srpm_url,
+            getSpecDesc(spec)
+    )
+    bug_data = {
+            'product': 'Fedora',
+            'component': 'Package Review',
+            'short_desc': 'Review Request: {0} - {0}'.format(
+                getSpecName(spec),
+                getSpecSummary(spec)
+            ),
+            'comment': comment,
+            'rep_platform': 'Unspecified',
+            'bug_severity': 'Unspecified',
+            'op_sys': 'Unspecified',
+            'bug_file_loc': '',
+            'priority': 'unspecified',
+    }
+    bzclient = RHBugzilla3(
+            url = 'https://bugzilla.redhat.com/xmlrpc.cgi',
+    )
+    bzclient.login(
+            user=raw_input("Enter Bugzilla username: "),
+            password=getpass("Enter Bugzilla password; ")
+    )
+    try:
+        bzclient.createbug(**bug_data)
+        bzclient.refresh()
+    except:
+        return createPackageReview(spec_url, srpm_url, spec)
 
 def main():
     """
@@ -126,6 +173,19 @@ def main():
             package,
             port=config.getint('remote', 'port')
     )
+    createPackageReview(
+            "{0}/rpm/{1}/{2}".format(
+                config.get('remote', 'web_uri'),
+                package,
+                getSpecName(package)
+            ),
+            "{0}/rpm/{1}/{2}".format(
+                config.get('remote', 'web_uri'),
+                package,
+                getSRPMForPackage(package)
+            )
+    )
+
 
 if __name__ == "__main__":
     package = sys.argv[1]
