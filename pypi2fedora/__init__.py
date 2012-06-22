@@ -121,7 +121,7 @@ def getSpecSummary(spec):
 def getSpecName(spec):
     return rpm.spec(spec).packages[0].headers.format("%{name}")
 
-def createPackageReview(spec_url, srpm_url, spec):
+def createPackageReview(spec_url, srpm_url, spec, bz_user = None, bz_pass = None):
     comment_format = """
     Spec URL: {0}
     SRPM URL: {1}
@@ -150,8 +150,8 @@ def createPackageReview(spec_url, srpm_url, spec):
             url = 'https://bugzilla.redhat.com/xmlrpc.cgi',
     )
     bzclient.login(
-            user=raw_input("Enter Bugzilla username: "),
-            password=getpass("Enter Bugzilla password; ")
+            user = bz_user if bz_user else raw_input("Enter Bugzilla username: "),
+            password = bz_pass if bz_pass else getpass("Enter Bugzilla password: ")
     )
     try:
         bzclient.createbug(**bug_data)
@@ -164,7 +164,7 @@ def main():
     Main function, used to execute all the other helper funcs
     """
     package = sys.argv[1]
-    config = ConfigParser.read(os.path.expanduser("~/.pypi2fedora.conf"))
+    config = ConfigParser.read(os.path.expanduser("~/.config/pypi2fedora/user.conf"))
     editSpecFile(package)
     buildRPM(package)
     uploadToWebServer(
